@@ -1,0 +1,61 @@
+{
+  "name": "@connectaryal/react-pbac",
+  "version": "1.0.0",
+  "description": "A flexible Policy-Based Access Control (PBAC) library for React",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "react",
+    "pbac",
+    "policy-based-access-control",
+    "permissions",
+    "authorization",
+    "access-control"
+  ],
+  "author": {
+    "name": "Shiva Aryal",
+    "email": "aryalshiva005@gmail.com",
+    "url": "https://github.com/connectaryal"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/connectaryal/react-pbac.git"
+  },
+  "bugs": {
+    "url": "https://github.com/connectaryal/react-pbac/issues"
+  },
+  "homepage": "https://github.com/connectaryal/react-pbac#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@rollup/plugin-commonjs": "^24.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-typescript": "^11.0.0",
+    "rollup": "^3.0.0",
+    "rollup-plugin-dts": "^5.0.0",
+    "typescript": "^4.9.0"
+  },
+  "dependencies": {}
+}

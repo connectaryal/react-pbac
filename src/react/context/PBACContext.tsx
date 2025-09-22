@@ -6,7 +6,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { PBAC } from "../../core/pbac";
+import { PBACCore } from "../../core/pbac";
 import {
   Permission,
   UserContext,
@@ -16,7 +16,7 @@ import {
 
 // Context interface
 interface PBACContextType<T = UserContext> {
-  pbac: PBAC<T>;
+  pbac: PBACCore<T>;
   // Permission management methods
   setPermissions: (permissions: Permission[]) => void;
   addPermissions: (permissions: Permission[]) => void;
@@ -35,8 +35,6 @@ interface PBACContextType<T = UserContext> {
   can: (permission: Permission, context?: Partial<T>) => boolean;
   canAll: (permissions: Permission[], context?: Partial<T>) => boolean;
   canAny: (permissions: Permission[], context?: Partial<T>) => boolean;
-  isSuperAdmin: () => boolean;
-  // Force re-render trigger
   refresh: () => void;
 }
 
@@ -47,7 +45,7 @@ const PBACContext = createContext<PBACContextType | undefined>(undefined);
 interface PBACProviderProps<T = UserContext> {
   children: ReactNode;
   config?: PBACConfig<T>;
-  pbacInstance?: PBAC<T>;
+  pbacInstance?: PBACCore<T>;
 }
 
 // Provider component
@@ -57,15 +55,15 @@ export function PBACProvider<T = UserContext>({
   pbacInstance,
 }: PBACProviderProps<T>) {
   // Create PBAC instance from config or use provided instance
-  const [pbac] = useState<PBAC<T>>(() => {
+  const [pbac] = useState<PBACCore<T>>(() => {
     if (pbacInstance) {
       return pbacInstance;
     }
     if (config) {
-      return new PBAC(config);
+      return new PBACCore(config);
     }
     // Default empty configuration
-    return new PBAC({ permissions: [] });
+    return new PBACCore({ permissions: [] });
   });
 
   // Force re-render state for reactive updates
@@ -158,9 +156,6 @@ export function PBACProvider<T = UserContext>({
     [pbac]
   );
 
-  const isSuperAdmin = useCallback(() => {
-    return pbac.isSuperAdmin();
-  }, [pbac]);
   // Context value
   const value: PBACContextType<T> = useMemo(
     () => ({
@@ -176,7 +171,6 @@ export function PBACProvider<T = UserContext>({
       can,
       canAll,
       canAny,
-      isSuperAdmin,
       refresh,
     }),
     [
@@ -192,7 +186,6 @@ export function PBACProvider<T = UserContext>({
       can,
       canAll,
       canAny,
-      isSuperAdmin,
       refresh,
     ]
   );

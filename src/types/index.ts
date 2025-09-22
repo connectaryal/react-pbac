@@ -10,9 +10,17 @@ export interface PermissionRule<T = any> {
   condition?: ConditionFunction<T>;
 }
 
+export interface IPermissionConfig {
+  permissions: string[];
+  requireAll?: boolean; // true = AND logic, false = OR logic (default)
+}
+
+export type PermissionCheck = string | string[] | IPermissionConfig;
+
 // User context that can be passed to conditions
 export interface UserContext {
-  id: string | number;
+  id?: string | number;
+  roles?: string[];
   [key: string]: any;
 }
 
@@ -20,6 +28,8 @@ export interface UserContext {
 export interface PBACConfig<T = UserContext> {
   permissions: Permission[];
   user?: T;
+  roles?: string[];
+  rolePermissions?: Map<string, Set<Permission>>;
 }
 
 // Permission check result

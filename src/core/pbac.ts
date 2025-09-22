@@ -6,15 +6,22 @@ import {
   ConditionFunction,
 } from "../types";
 
-export class PBAC<T = UserContext> {
+export class PBACCore<T = UserContext> {
   private permissions: Set<Permission>;
   private readonly rules: Map<Permission, ConditionFunction<T>[]>;
   private user?: T;
+  private roles: Set<string> = new Set();
+  private rolePermissions: Map<string, Set<Permission>> = new Map();
 
+  /**
+   * Initialize PBAC system with config
+   */
   constructor(config: PBACConfig<T>) {
     this.permissions = new Set(config.permissions);
     this.rules = new Map();
+    this.roles = new Set(config.roles);
     this.user = config.user;
+    this.rolePermissions = new Map(config.rolePermissions);
   }
 
   /**
@@ -56,6 +63,83 @@ export class PBAC<T = UserContext> {
   }
 
   /**
+   * Set roles (replaces existing roles)
+   */
+  setRoles(roles: string[]): void {
+    this.roles = new Set(roles);
+  }
+
+  /**
+   * Check if a role exists in the system
+   */
+  hasRole(role: string): boolean {
+    return this.roles.has(role);
+  }
+
+  /**
+   * Check if the role is valid
+   */
+  isValidRole(role: string): boolean {
+    return this.roles.has(role);
+  }
+
+  /**
+   * Is wildcard role present
+   */
+  hasWildcardRole(permissions: Set<Permission>): boolean {
+    return permissions.has("*");
+  }
+
+  /**
+   * Get all role permissions
+   */
+  getAllRolePermissions(): Map<string, Set<Permission>> {
+    return this.rolePermissions;
+  }
+
+  /**
+   * Set role permissions (replaces existing)
+   */
+  setRolePermissions(rolePermissions: Map<string, Set<Permission>>): void {
+    this.rolePermissions = new Map(rolePermissions);
+  }
+
+  /**
+   * Get permissions for a specific role
+   */
+  getRolePermissions(role: string): Set<Permission> {
+    if (!this.isValidRole(role)) {
+      throw new Error(`Role '${role}' is not valid.`);
+    }
+
+    const perms = this.rolePermissions.get(role);
+    return perms ? new Set(perms) : new Set();
+  }
+
+  /**
+   * Check if a role has a specific permission
+   */
+  hasRolePermissions(role: string, permission: Permission): boolean {
+    const roles = this.getRolePermissions(role);
+
+    if (this.hasWildcardRole(roles)) {
+      return true;
+    }
+
+    return roles.has(permission);
+  }
+
+  /**
+   * Format permission names, (if single make it an array)
+   */
+  formatPermissionNames(permissions: Permission | Permission[]): Permission[] {
+    if (!Array.isArray(permissions)) {
+      return [permissions];
+    }
+    return permissions;
+  }
+
+  /**
    * Get all permissions
    */
   getPermissions(): Permission[] {
@@ -79,11 +163,13 @@ export class PBAC<T = UserContext> {
     this.rules.delete(permission);
   }
 
-  /**
-   * Check if user has super-admin (wildcard) access
-   */
-  isSuperAdmin(): boolean {
-    return this.permissions.has("*");
+  hasRolePermission(role: string, permission: Permission): boolean {
+    // Check for wildcard permission (super-admin access)
+    if (this.hasWildcardRole(this.permissions)) {
+      return true;
+    }
+
+    return this.permissions.has(`${role}:${permission}`);
   }
 
   /**
@@ -92,9 +178,10 @@ export class PBAC<T = UserContext> {
    */
   hasPermission(permission: Permission): boolean {
     // Check for wildcard permission (super-admin access)
-    if (this.permissions.has("*")) {
+    if (this.hasWildcardRole(this.permissions)) {
       return true;
     }
+
     return this.permissions.has(permission);
   }
 

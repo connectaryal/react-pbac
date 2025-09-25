@@ -1,6 +1,8 @@
 // Core permission types
 export type Permission = string;
 
+export type PermissionSet = Set<Permission>;
+
 // Condition function that can be applied to permissions
 export type ConditionFunction<T = any> = (context: T) => boolean;
 
@@ -29,7 +31,7 @@ export interface PBACConfig<T = UserContext> {
   permissions: Permission[];
   user?: T;
   roles?: string[];
-  rolePermissions?: Map<string, Set<Permission>>;
+  rolePermissions?: Map<string, PermissionSet>;
 }
 
 // Permission check result

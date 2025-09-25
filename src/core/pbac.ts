@@ -4,14 +4,15 @@ import {
   PBACConfig,
   PermissionCheckResult,
   ConditionFunction,
+  PermissionSet,
 } from "../types";
 
 export class PBACCore<T = UserContext> {
-  private permissions: Set<Permission>;
-  private readonly rules: Map<Permission, ConditionFunction<T>[]>;
+  private permissions: PermissionSet;
+  private rules: Map<Permission, ConditionFunction<T>> = new Map();
   private user?: T;
   private roles: Set<string> = new Set();
-  private rolePermissions: Map<string, Set<Permission>> = new Map();
+  private rolePermissions: Map<string, PermissionSet> = new Map();
 
   /**
    * Initialize PBAC system with config
@@ -25,6 +26,13 @@ export class PBACCore<T = UserContext> {
   }
 
   /**
+   * Get current user context
+   */
+  getUser(): T | undefined {
+    return this.user;
+  }
+
+  /**
    * Set or update the user context
    */
   setUser(user: T): void {
@@ -32,10 +40,10 @@ export class PBACCore<T = UserContext> {
   }
 
   /**
-   * Get current user context
+   * Get all permissions
    */
-  getUser(): T | undefined {
-    return this.user;
+  getPermissions(): PermissionSet {
+    return this.permissions;
   }
 
   /**
@@ -63,10 +71,34 @@ export class PBACCore<T = UserContext> {
   }
 
   /**
+   * Get all roles
+   */
+  getRoles(): PermissionSet {
+    return this.roles;
+  }
+
+  /**
    * Set roles (replaces existing roles)
    */
   setRoles(roles: string[]): void {
     this.roles = new Set(roles);
+  }
+
+  /**
+   * Add roles to existing set
+   */
+  addRoles(roles: string[]): void {
+    roles.forEach((role) => this.roles.add(role));
+  }
+
+  /**
+   * Remove roles
+   */
+  removeRoles(roles: string[]): void {
+    roles.forEach((role) => {
+      this.roles.delete(role);
+      this.rolePermissions.delete(role);
+    });
   }
 
   /**
@@ -86,28 +118,28 @@ export class PBACCore<T = UserContext> {
   /**
    * Is wildcard role present
    */
-  hasWildcardRole(permissions: Set<Permission>): boolean {
+  hasWildcardRole(permissions: PermissionSet): boolean {
     return permissions.has("*");
   }
 
   /**
    * Get all role permissions
    */
-  getAllRolePermissions(): Map<string, Set<Permission>> {
+  getAllRolePermissions(): Map<string, PermissionSet> {
     return this.rolePermissions;
   }
 
   /**
    * Set role permissions (replaces existing)
    */
-  setRolePermissions(rolePermissions: Map<string, Set<Permission>>): void {
+  setRolePermissions(rolePermissions: Map<string, PermissionSet>): void {
     this.rolePermissions = new Map(rolePermissions);
   }
 
   /**
    * Get permissions for a specific role
    */
-  getRolePermissions(role: string): Set<Permission> {
+  getRolePermissions(role: string): PermissionSet {
     if (!this.isValidRole(role)) {
       throw new Error(`Role '${role}' is not valid.`);
     }
@@ -115,45 +147,33 @@ export class PBACCore<T = UserContext> {
     const perms = this.rolePermissions.get(role);
     return perms ? new Set(perms) : new Set();
   }
-
-  /**
-   * Check if a role has a specific permission
-   */
-  hasRolePermissions(role: string, permission: Permission): boolean {
-    const roles = this.getRolePermissions(role);
-
-    if (this.hasWildcardRole(roles)) {
-      return true;
-    }
-
-    return roles.has(permission);
-  }
-
   /**
    * Format permission names, (if single make it an array)
    */
-  formatPermissionNames(permissions: Permission | Permission[]): Permission[] {
-    if (!Array.isArray(permissions)) {
-      return [permissions];
+  formatPermissionNames(names: Permission | Permission[]): Permission[] {
+    if (!Array.isArray(names)) {
+      return [names];
     }
-    return permissions;
-  }
-
-  /**
-   * Get all permissions
-   */
-  getPermissions(): Permission[] {
-    return Array.from(this.permissions);
+    return names;
   }
 
   /**
    * Add a condition to a permission
    */
-  addCondition(permission: Permission, condition: ConditionFunction<T>): void {
-    if (!this.rules.has(permission)) {
-      this.rules.set(permission, []);
+  setCondition(permission: Permission, condition: ConditionFunction<T>): void {
+    if (!this.permissions.has(permission)) {
+      throw new Error(
+        `Cannot add condition. Permission '${permission}' does not exist.`
+      );
     }
-    this.rules.get(permission)!.push(condition);
+    this.rules.set(permission, condition);
+  }
+
+  /**
+   * Get condition for a permission
+   */
+  getCondition(permission: Permission): ConditionFunction<T> | undefined {
+    return this.rules.get(permission);
   }
 
   /**
@@ -163,13 +183,17 @@ export class PBACCore<T = UserContext> {
     this.rules.delete(permission);
   }
 
+  /**
+   * Check if a role has a specific permission
+   */
   hasRolePermission(role: string, permission: Permission): boolean {
-    // Check for wildcard permission (super-admin access)
-    if (this.hasWildcardRole(this.permissions)) {
+    const rolePermissions = this.getRolePermissions(role);
+
+    if (this.hasWildcardRole(rolePermissions)) {
       return true;
     }
 
-    return this.permissions.has(`${role}:${permission}`);
+    return rolePermissions.has(permission);
   }
 
   /**
@@ -206,7 +230,7 @@ export class PBACCore<T = UserContext> {
       const wildcardConditions = this.rules.get("*");
 
       // If no conditions on wildcard, allow everything
-      if (!wildcardConditions || wildcardConditions.length === 0) {
+      if (!wildcardConditions) {
         return { allowed: true };
       }
 
@@ -216,20 +240,18 @@ export class PBACCore<T = UserContext> {
         ...context,
       } as T;
 
-      for (const condition of wildcardConditions) {
-        try {
-          if (!condition(evaluationContext)) {
-            return {
-              allowed: false,
-              reason: `Wildcard condition failed for permission '${permission}'`,
-            };
-          }
-        } catch (error) {
+      try {
+        if (!wildcardConditions(evaluationContext)) {
           return {
             allowed: false,
-            reason: `Error evaluating wildcard condition: ${error}`,
+            reason: `Wildcard condition failed for permission '${permission}'`,
           };
         }
+      } catch (error) {
+        return {
+          allowed: false,
+          reason: `Error evaluating wildcard condition: ${error}`,
+        };
       }
 
       return { allowed: true };
@@ -237,7 +259,7 @@ export class PBACCore<T = UserContext> {
 
     // Standard permission check with conditions
     const conditions = this.rules.get(permission);
-    if (!conditions || conditions.length === 0) {
+    if (!conditions) {
       return { allowed: true };
     }
 
@@ -247,21 +269,19 @@ export class PBACCore<T = UserContext> {
       ...context,
     } as T;
 
-    // All conditions must pass
-    for (const condition of conditions) {
-      try {
-        if (!condition(evaluationContext)) {
-          return {
-            allowed: false,
-            reason: `Condition failed for permission '${permission}'`,
-          };
-        }
-      } catch (error) {
+    // Execute the condition function
+    try {
+      if (!conditions(evaluationContext)) {
         return {
           allowed: false,
-          reason: `Error evaluating condition for permission '${permission}': ${error}`,
+          reason: `Condition failed for permission '${permission}'`,
         };
       }
+    } catch (error) {
+      return {
+        allowed: false,
+        reason: `Error evaluating condition for permission '${permission}': ${error}`,
+      };
     }
 
     return { allowed: true };
